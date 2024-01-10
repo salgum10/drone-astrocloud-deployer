@@ -119,51 +119,54 @@ class AstrocloudDeployer:
             logger.error(f"❌ Error while retrieving docker image: {response.json()}")
 
     def deploy_image(self, image_id: str):
+        """
+        Deploy the Docker image to Astrocloud using the updated GraphQL mutation.
+        """
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self._oauth_token}",
         }
 
-        graphql_query = """
-            mutation imageDeploy($input: ImageDeployInput!) {
-                imageDeploy(input: $input) {
-                    id
-                    deploymentId
-                    digest
-                    env
-                    labels
-                    name
-                    tag
-                    repository
+        # New GraphQL payload for deployment
+        payload = json.dumps({
+            "query": """mutation DeployImage($input: DeployImageInput!) {
+                deployImage(
+                  input: $input
+                ) {
+                  id
+                  deploymentId
+                  digest
+                  env
+                  labels
+                  name
+                  tag
+                  repository
                 }
-            }
-        """
-
-        payload = {
-            "query": graphql_query,
+            }""",
             "variables": {
                 "input": {
-                    "id": image_id,
+                    "deploymentId": self._deployment_id,
+                    "imageId": image_id,
                     "tag": self._release_tag,
-                    "repository": f"images.astronomer.cloud/{self._organization_id}/{self._deployment_id}",
+                    "repository": f"images.astronomer.cloud/{self._organization_id}/{self._deployment_id}"
                 }
-            },
-        }
+            }
+        })
+
         response = None
         try:
             response = requests.post(
-                self._astro_api,
+                "https://api.astronomer.io/hub/graphql",
                 headers=headers,
-                data=json.dumps(payload),
+                data=payload,
             )
             response.raise_for_status()
 
             logger.info(f"🚀 Deploying Docker image ID '{image_id}' to Astrocloud...")
-            response.json()
             logger.info(f"🎉 Successfully updated Astrocloud deployment 🎉")
-        except:
+        except Exception as e:
             logger.error(
-                f"❌ Error occured while deploying docker image to Astrocloud: {response.json()}"
+                f"❌ Error occurred while deploying docker image to Astrocloud: {str(e)}"
             )
 
     def run(self, dry_run: bool = False):
