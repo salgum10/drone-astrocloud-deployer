@@ -16,22 +16,19 @@ class AstrocloudDeployer:
 
     def __init__(
         self,
-        astronomer_key_id: str,
-        astronomer_key_secret: str,
+        astronomer_api_token: str,
         organization_id: str,
         deployment_id: str,
         release_tag: str,
     ):
         """Create an AstrocloudDeployer."""
-        self._astronomer_key_id = astronomer_key_id
-        self._astronomer_key_secret = astronomer_key_secret
         self._deployment_id = deployment_id
         self._organization_id = organization_id
         self._release_tag = release_tag
 
         # Stores the oauth token to make subsequent requests
         self._astro_api = "https://api.astronomer.io/hub/v1"
-        self._oauth_token = None
+        self._oauth_token = astronomer_api_token
 
     def __repr__(self):
         """Representation of an AstrocloudDeployer object."""
@@ -41,30 +38,6 @@ class AstrocloudDeployer:
             self._deployment_id,
             self._release_tag,
         )
-
-    def _fetch_oauth_token(self):
-        headers = {"Content-Type": "application/json"}
-
-        payload = {
-            "client_id": self._astronomer_key_id,
-            "client_secret": self._astronomer_key_secret,
-            "audience": "astronomer-ee",
-            "grant_type": "client_credentials",
-        }
-
-        response = None
-
-        try:
-            response = requests.post(
-                "https://auth.astronomer.io/oauth/token",
-                headers=headers,
-                data=json.dumps(payload),
-            )
-            response.raise_for_status()
-            self._oauth_token = response.json()["access_token"]
-            logger.info(f"🔑 Successfully retrieved Astronomer OAuth token!")
-        except:
-            logger.error(f"❌ Error while fetching oauth token: {response.json()}")
 
     def get_docker_image(self):
         headers = {
@@ -171,11 +144,9 @@ class AstrocloudDeployer:
 
     def run(self, dry_run: bool = False):
         """Main plugin logic."""
-        self._fetch_oauth_token()
         image_id = self.get_docker_image()
         if not dry_run:
-            self.deploy_image(image_id)
-
+           self.deploy_image(image_id)
 
 def main():
     """The main entrypoint for the plugin."""
@@ -185,15 +156,13 @@ def main():
         organization_id = dronecli.get("PLUGIN_ORGANIZATION_ID")
         deployment_id = dronecli.get("PLUGIN_DEPLOYMENT_ID")
         release_tag = dronecli.get("PLUGIN_RELEASE_TAG")
-        astronomer_key_id = dronecli.get("PLUGIN_ASTRONOMER_KEY_ID")
-        astronomer_key_secret = dronecli.get("PLUGIN_ASTRONOMER_KEY_SECRET")
+        astronomer_api_token = dronecli.get("PLUGIN_ASTRO_API_TOKEN")
 
         plugin = AstrocloudDeployer(
             organization_id=organization_id,
             deployment_id=deployment_id,
             release_tag=release_tag,
-            astronomer_key_id=astronomer_key_id,
-            astronomer_key_secret=astronomer_key_secret,
+            astronomer_api_token=astronomer_api_token
         )
 
         if dry_run:

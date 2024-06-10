@@ -23,7 +23,8 @@ astrocloud_env: &astrocloud_env
       from_secret: astronomer_key_id
     ASTRONOMER_KEY_SECRET:
       from_secret: astronomer_key_secret
-
+    ASTRONOMER_API_TOKEN:
+      from_secret: astronomer_api_token
 
 pipeline:
   steps:
@@ -43,10 +44,8 @@ pipeline:
     - name: deploy-to-astrocloud
       image: lowess/drone-astrocloud-deployer
       settings:
-        astronomer_key_id:
-          from_secret: astronomer_key_id
-        astronomer_key_secret:
-          from_secret: astronomer_key_secret
+        astronomer_api_token:
+          from_secret: astronomer_api_token
         organization_id: <your-astronomer-org-id>
         deployment_id: <your-deployment-id>
         release_tag: ${DRONE_TAG:-${DRONE_COMMIT_SHA}}
@@ -57,12 +56,8 @@ pipeline:
 
 # :gear: Parameter Reference
 
-
-* `astronomer_key_id` _(required)_ (:lock: secret)
-  * The Astrocloud API key id to authenticate with your workspace
-
-* `astronomer_key_secret` _(required)_ (:lock: secret)
-  * The Astrocloud API key secret to authenticate with your workspace
+* `astronomer_api_token` _(required)_ (:lock: secret)
+  * The Astrocloud API token to authenticate
 
 * `organization_id` _(required)_
   * The [Astronomer Organization ID](https://docs.astronomer.io/astro/cli/astro-organization-list) that hosts the deployment to release to
@@ -89,7 +84,6 @@ docker run -i \
            -e PLUGIN_ORGANIZATION_ID=${ORGANIZATION_ID} \
            -e PLUGIN_DEPLOYMENT_ID=${DEPLOYMENT_ID} \
            -e PLUGIN_RELEASE_TAG=${RELEASE_TAG} \
-           -e PLUGIN_ASTRONOMER_KEY_ID=${ASTRONOMER_KEY_ID} \
-           -e PLUGIN_ASTRONOMER_KEY_SECRET=${ASTRONOMER_KEY_SECRET} \
+           -e PLUGIN_ASTRONOMER_API_TOKEN=${ASTRONOMER_API_TOKEN} \
            lowess/drone-astrocloud-deployer
 ```
