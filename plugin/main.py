@@ -156,7 +156,7 @@ def main():
         organization_id = dronecli.get("PLUGIN_ORGANIZATION_ID")
         deployment_id = dronecli.get("PLUGIN_DEPLOYMENT_ID")
         release_tag = dronecli.get("PLUGIN_RELEASE_TAG")
-        astronomer_api_token = dronecli.get("PLUGIN_ASTRO_API_TOKEN")
+        astronomer_api_token = dronecli.get("PLUGIN_ASTRONOMER_API_TOKEN")
 
         plugin = AstrocloudDeployer(
             organization_id=organization_id,
