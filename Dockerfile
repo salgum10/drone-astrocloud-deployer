@@ -1,5 +1,5 @@
 FROM python:3.9-alpine
-MAINTAINER Florian Dambrine <android.florian@gmail.com>
+LABEL Author="Florian Dambrine <android.florian@gmail.com>"
 
 ENV PYTHONUNBUFFERED 1
 ENV PYTHONPATH /opt/drone

@@ -4,7 +4,6 @@
 
 import json
 import sys
-
 import requests
 from plugin import dronecli, logger
 
@@ -25,10 +24,10 @@ class AstrocloudDeployer:
         self._deployment_id = deployment_id
         self._organization_id = organization_id
         self._release_tag = release_tag
-
-        # Stores the oauth token to make subsequent requests
-        self._astro_api = "https://api.astronomer.io/hub/v1"
         self._oauth_token = astronomer_api_token
+        self._deploy_id = None
+        self._repository = None
+        self._tag = None
 
     def __repr__(self):
         """Representation of an AstrocloudDeployer object."""
@@ -39,114 +38,70 @@ class AstrocloudDeployer:
             self._release_tag,
         )
 
-    def get_docker_image(self):
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self._oauth_token}",
-        }
-
-        graphql_query = """
-            mutation imageCreate($input: ImageCreateInput!) {
-                imageCreate(input: $input) {
-                    id
-                    tag
-                    repository
-                    digest
-                    env
-                    labels
-                    deploymentId
-                }
-            }
-        """
-
-        payload = {
-            "query": graphql_query,
-            "variables": {
-                "input": {
-                    "deploymentId": self._deployment_id,
-                    "tag": self._release_tag,
-                }
-            },
-        }
-        response = None
+    def initialize_deploy(self):
+        """Initialize the deploy process and get the deploy ID, repository, and tag."""
         try:
+            headers = {
+                "Authorization": f"Bearer {self._oauth_token}",
+                "Content-Type": "application/json",
+                "X-Astro-Client-Identifier": "script"
+            }
+            data = {
+                "type": "IMAGE_AND_DAG"
+            }
             response = requests.post(
-                self._astro_api,
+                f"https://api.astronomer.io/platform/v1beta1/organizations/{self._organization_id}/deployments/{self._deployment_id}/deploys",
                 headers=headers,
-                data=json.dumps(payload),
+                json=data
+            )
+            response.raise_for_status()
+            deploy_info = response.json()
+            logger.debug(f"Deploy info: {json.dumps(deploy_info, indent=2)}")
+
+            self._deploy_id = deploy_info.get('id')
+            self._repository = deploy_info.get('imageRepository')
+            self._tag = deploy_info.get('imageTag')
+
+            if not self._deploy_id or not self._repository or not self._tag:
+                logger.error(f"❌ Deploy initialization failed: {deploy_info}")
+                raise ValueError("Deploy initialization failed")
+
+            logger.info(f"Initialized deploy process: deploy_id={self._deploy_id}, repository={self._repository}, tag={self._tag}")
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ Error during deploy initialization: {e}")
+            raise
+
+    def astro_deploy(self):
+        """Runs the Astro deploy command with Docker image."""
+        try:
+            headers = {
+                "Authorization": f"Bearer {self._oauth_token}",
+                "Content-Type": "application/json",
+                "X-Astro-Client-Identifier": "script"
+            }
+            data = {}
+            response = requests.post(
+                f"https://api.astronomer.io/platform/v1beta1/organizations/{self._organization_id}/deployments/{self._deployment_id}/deploys/{self._deploy_id}/finalize",
+                headers=headers,
+                json=data
             )
             response.raise_for_status()
 
-            logger.info(f"🔎 Retrieving Docker image ID from Astrocloud...")
-            image = response.json()["data"]["imageCreate"]
-            logger.info(
-                f"""🐳 Astrocloud Docker image spec are:
-
-                    #️⃣ ID:          {image['id']}
-                    🏷️ Tag:         {image['tag']}
-                    🏠 Repository: {image['repository']}
-            """
-            )
-            return image["id"]
-        except:
-            logger.error(f"❌ Error while retrieving docker image: {response.json()}")
-
-    def deploy_image(self, image_id: str):
-        """
-        Deploy the Docker image to Astrocloud using the updated GraphQL mutation.
-        """
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self._oauth_token}",
-        }
-
-        # New GraphQL payload for deployment
-        payload = json.dumps({
-            "query": """mutation DeployImage($input: DeployImageInput!) {
-                deployImage(
-                  input: $input
-                ) {
-                  id
-                  deploymentId
-                  digest
-                  env
-                  labels
-                  name
-                  tag
-                  repository
-                }
-            }""",
-            "variables": {
-                "input": {
-                    "deploymentId": self._deployment_id,
-                    "imageId": image_id,
-                    "tag": self._release_tag,
-                    "repository": f"images.astronomer.cloud/{self._organization_id}/{self._deployment_id}"
-                }
-            }
-        })
-
-        response = None
-        try:
-            response = requests.post(
-                "https://api.astronomer.io/hub/graphql",
-                headers=headers,
-                data=payload,
-            )
-            response.raise_for_status()
-
-            logger.info(f"🚀 Deploying Docker image ID '{image_id}' to Astrocloud...")
+            logger.info(f"🚀 Deploying Docker image to Astrocloud...")
             logger.info(f"🎉 Successfully updated Astrocloud deployment 🎉")
-        except Exception as e:
+
+        except requests.exceptions.RequestException as e:
             logger.error(
-                f"❌ Error occurred while deploying docker image to Astrocloud: {str(e)}"
+                f"❌ Error occurred while deploying docker image to Astrocloud: {e}"
             )
+            raise
 
     def run(self, dry_run: bool = False):
         """Main plugin logic."""
-        image_id = self.get_docker_image()
+        self.initialize_deploy()
         if not dry_run:
-           self.deploy_image(image_id)
+            self.astro_deploy()
 
 def main():
     """The main entrypoint for the plugin."""
@@ -162,7 +117,7 @@ def main():
             organization_id=organization_id,
             deployment_id=deployment_id,
             release_tag=release_tag,
-            astronomer_api_token=astronomer_api_token
+            astronomer_api_token=astronomer_api_token,
         )
 
         if dry_run:
